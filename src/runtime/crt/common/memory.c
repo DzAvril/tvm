@@ -326,8 +326,14 @@ MemoryManager* TVMGetGlobalMemoryManager() {
 
 /** \brief Allocate memory from manager */
 void* vmalloc(size_t size) {
-  MemoryManager* mgr = TVMGetGlobalMemoryManager();
-  return mgr->Alloc(mgr, size);
+  void* ptr = 0;
+  int ret = posix_memalign(&ptr, 128, size);
+  if (ret) {
+    fprintf (stderr, "posix_memalign: %s\n", strerror (ret));
+    return NULL;
+  }
+  memset(ptr, 0, size);
+  return ptr;
 }
 
 /** \brief Reallocate memory from manager */
@@ -336,10 +342,22 @@ void* vrealloc(void* ptr, size_t size) {
   return mgr->Realloc(mgr, ptr, size);
 }
 
+void* memExpand(void* ptr, size_t oldSize, size_t expandedSize) {
+  void *nPtr;
+  int ret = posix_memalign(&nPtr, 128, oldSize + expandedSize);
+  if (!nPtr) {
+    fprintf (stderr, "posix_memalign: %s\n", strerror (ret));
+    return NULL;
+  }
+  memset(nPtr, 0, oldSize + expandedSize);
+  memcpy(nPtr, ptr, oldSize);
+  free(ptr);
+  return nPtr;
+}
+
 /** \brief Release memory from manager */
 void vfree(void* ptr) {
-  MemoryManager* mgr = TVMGetGlobalMemoryManager();
-  mgr->Free(mgr, ptr);
+  free(ptr);
 }
 
 int vleak_size = 0;

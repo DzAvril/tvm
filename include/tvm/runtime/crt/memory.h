@@ -49,6 +49,15 @@ void* vmalloc(size_t size);
 void* vrealloc(void* ptr, size_t size);
 
 /*!
+ * \brief Expand memory based on given space
+ * \param ptr The pointer to the memory area to be expanded
+ * \param oldSize The size of old memory
+ * \param expandedSize The size to be expanded
+ * \return The virtual address
+ */
+void* memExpand(void* ptr, size_t oldSize, size_t expandedSize);
+
+/*!
  * \brief Free the memory.
  * \param ptr The pointer to the memory to deallocate
  * \return The virtual address
