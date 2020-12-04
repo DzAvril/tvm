@@ -34,9 +34,14 @@ PKG_CFLAGS = ${PKG_COMPILE_OPTS} \
 	-I${DMLC_CORE}/include \
 	-I${TVM_ROOT}/3rdparty/dlpack/include \
 	-Icrt_config \
-	--sysroot=/opt/fsl-imx-wayland/4.14-sumo/sysroots/aarch64-poky-linux/
-	
-PKG_LDFLAGS =-lpthread -lm -ldl ${CRT_ROOT}/libgraph_runtime.a ${CRT_ROOT}/libcommon.a
+	--sysroot=/opt/fsl-imx-wayland/4.14-sumo/sysroots/aarch64-poky-linux/ \
+	-L${TVM_ROOT}/cross-build/
+
+# link static library	
+#PKG_LDFLAGS =-lpthread -lm -ldl ${CRT_ROOT}/libgraph_runtime.a ${CRT_ROOT}/libcommon.a
+
+#link dynamic library
+PKG_LDFLAGS = -lcrt_runtime -ldl
 
 build_dir := build
 $(ifeq VERBOSE,1)

@@ -32,9 +32,14 @@ PKG_CFLAGS = ${PKG_COMPILE_OPTS} \
 	-I${TVM_ROOT}/include \
 	-I${DMLC_CORE}/include \
 	-I${TVM_ROOT}/3rdparty/dlpack/include \
-	-Icrt_config
+	-Icrt_config \
+	-L${TVM_ROOT}/build/
 
-PKG_LDFLAGS = ${CRT_ROOT}/libgraph_runtime.a ${CRT_ROOT}/libcommon.a -ldl 
+# link static library
+# PKG_LDFLAGS = ${CRT_ROOT}/libgraph_runtime.a ${CRT_ROOT}/libcommon.a -ldl 
+
+#link dynamic library
+PKG_LDFLAGS = -lcrt_runtime -ldl
 
 build_dir := build
 

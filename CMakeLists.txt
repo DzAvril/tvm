@@ -90,6 +90,8 @@ include_directories(SYSTEM ${DMLC_PATH})
 include_directories(SYSTEM ${RANG_PATH})
 include_directories(SYSTEM ${COMPILER_RT_PATH})
 include_directories(SYSTEM ${PICOJSON_PATH})
+include_directories("src/runtime/crt/include")
+include_directories("src/runtime/crt/host")
 
 # initial variables
 set(TVM_LINKER_LIBS "")
@@ -272,6 +274,13 @@ file(GLOB RUNTIME_SRCS
   src/runtime/vm/*.cc
 )
 
+file(GLOB C_RUNTIME_SRCS
+  src/runtime/crt/common/*.c
+  src/runtime/crt/graph_runtime/*.c
+  src/runtime/crt/utvm_rpc_common/*.c
+  src/runtime/crt/utvm_rpc_server/*.c
+)
+
 if(BUILD_FOR_HEXAGON)
   # Add file implementing posix_memalign.
   list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon_posix.cc)
@@ -384,6 +393,9 @@ if(USE_MICRO)
   # Unix Makefiles generator, need to add these explicit target-level dependency)
   add_dependencies(tvm host_standalone_crt)
   add_dependencies(tvm_runtime host_standalone_crt)
+
+  add_dependencies(tvm_runtime crt_runtime)
+  add_library(crt_runtime SHARED ${C_RUNTIME_SRCS})
 endif()
 
 if(USE_CPP_RPC)
