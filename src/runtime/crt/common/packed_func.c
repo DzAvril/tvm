@@ -27,6 +27,7 @@
 #include <string.h>
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/packed_func.h>
+#include <dlfcn.h>
 
 DLDataType String2DLDataType(const char* s) {
   DLDataType t;
@@ -93,19 +94,17 @@ int TVMPackedFunc_InitGlobalFunc(TVMPackedFunc* pf, const char* name, const TVMA
 
 int TVMPackedFunc_InitModuleFunc(TVMPackedFunc* pf, TVMModuleHandle module, const char* name,
                                  const TVMArgs* args) {
-  int status = 0;
-
   pf->Call = &TVMPackedFunc_Call;
   pf->SetArgs = &TVMPackedFunc_SetArgs;
 
-  status = TVMModGetFunction(module, name, 0, &pf->fexec);
-  if (status != 0) {
-    return status;
-  }
-
+  pf->packedFexec = (TVMBackendPackedCFunc)TVMModGetPackedFunction(name);
   snprintf(pf->name, sizeof(pf->name), "%s", name);
   TVMPackedFunc_SetArgs(pf, args);
-  return status;
+  if (pf->packedFexec) {
+    return 0;
+  } else {
+    return -1;
+  }
 }
 
 TVMArgs TVMArgs_Create(TVMValue* values, uint32_t* tcodes, uint32_t values_count) {
@@ -123,8 +122,11 @@ TVMArgs TVMArgs_Create(TVMValue* values, uint32_t* tcodes, uint32_t values_count
 int TVMPackedFunc_Call(TVMPackedFunc* pf) {
   pf->ret_value.values_count = 1;
   pf->ret_value.tcodes[0] = kTVMNullptr;
-  return TVMFuncCall(pf->fexec, pf->args.values, pf->args.tcodes, pf->args.values_count,
-                     pf->ret_value.values, pf->ret_value.tcodes);
+  pf->ret_value.values[0].v_handle = NULL;
+  // printf("[debug] %s-%d Call function %s, address: %p.\n", __FILE__, __LINE__, pf->name, (void *)pf->packedFexec);
+  int ret = pf->packedFexec(pf->args.values, pf->args.tcodes, pf->args.values_count,
+                     pf->ret_value.values, pf->ret_value.tcodes, NULL);;
+  return ret;
 }
 
 void TVMPackedFunc_SetArgs(TVMPackedFunc* pf, const TVMArgs* args) {

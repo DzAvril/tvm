@@ -224,6 +224,13 @@ TVM_DLL int TVMModGetFunction(TVMModuleHandle mod, const char* func_name, int qu
                               TVMFunctionHandle* out);
 
 /*!
+ * \brief Get function from the dlsym.
+ * \param func_name The name of the function.
+ * \param out The result function, can be NULL if it is not available.
+ */
+TVM_DLL void *TVMModGetPackedFunction(const char* func_name);
+
+/*!
  * \brief Free the Module
  * \param mod The module to be freed.
  *

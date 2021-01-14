@@ -46,6 +46,7 @@ TVMArgs TVMArgs_Create(TVMValue* values, uint32_t* tcodes, uint32_t values_count
 typedef struct TVMPackedFunc {
   char name[200];
   TVMFunctionHandle fexec;
+  TVMBackendPackedCFunc packedFexec;
   TVMArgs args;
   TVMArgs ret_value;
   int (*Call)(struct TVMPackedFunc* pf);

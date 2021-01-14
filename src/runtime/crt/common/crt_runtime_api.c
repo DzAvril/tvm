@@ -33,8 +33,16 @@
 #include <tvm/runtime/crt/internal/graph_runtime/graph_runtime.h>
 #include <tvm/runtime/crt/memory.h>
 #include <tvm/runtime/crt/platform.h>
-
+#if defined(_WIN32)
+#include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
 // Handle internal errors
+typedef void (*FuncSetLastError)(const char *);
+typedef void* (*FuncAllocWorkspace)(int, int, uint64_t, int, int);
+typedef int (*FuncFreeWorkspace)(int, int, void*);
+typedef int (*FuncParallelLaunch)(FTVMParallelLambda, void*, int);
 
 static char g_last_error[1024];
 
@@ -52,6 +60,8 @@ __attribute__((format(printf, 1, 2))) int TVMAPIErrorf(const char* msg, ...) {
 }
 
 const char* TVMGetLastError(void) { return g_last_error; }
+// Library handle
+  void* lib_handle_ = NULL;
 
 // Manipulate NDArray on target device
 
@@ -123,23 +133,23 @@ static int DecodeModuleHandle(TVMModuleHandle handle, tvm_module_index_t* out_mo
   return 0;
 }
 
-static TVMModuleHandle EncodeModuleHandle(tvm_module_index_t module_index) {
-  return (TVMModuleHandle)((uintptr_t)(module_index | 0x8000));
-}
+// static TVMModuleHandle EncodeModuleHandle(tvm_module_index_t module_index) {
+//   return (TVMModuleHandle)((uintptr_t)(module_index | 0x8000));
+// }
 
-int TVMModCreateFromCModule(const TVMModule* mod, TVMModuleHandle* out_handle) {
-  tvm_module_index_t idx;
+// static int TVMModCreateFromCModule(const TVMModule* mod, TVMModuleHandle* out_handle) {
+//   tvm_module_index_t idx;
 
-  for (idx = 0; idx < TVM_CRT_MAX_REGISTERED_MODULES; idx++) {
-    if (registered_modules[idx] == NULL) {
-      registered_modules[idx] = mod;
-      *out_handle = EncodeModuleHandle(idx);
-      return 0;
-    }
-  }
+//   for (idx = 0; idx < TVM_CRT_MAX_REGISTERED_MODULES; idx++) {
+//     if (registered_modules[idx] == NULL) {
+//       registered_modules[idx] = mod;
+//       *out_handle = EncodeModuleHandle(idx);
+//       return 0;
+//     }
+//   }
 
-  return -1;
-}
+//   return -1;
+// }
 
 int TVMModFree(TVMModuleHandle mod) {
   tvm_module_index_t module_index;
@@ -157,18 +167,18 @@ static TVMModuleHandle system_lib_handle;
 
 int SystemLibraryCreate(TVMValue* args, int* type_codes, int num_args, TVMValue* ret_val,
                         int* ret_type_codes) {
-  const TVMModule* system_lib;
+  // const TVMModule* system_lib;
 
-  if (system_lib_handle == kTVMModuleHandleUninitialized) {
-    system_lib = TVMSystemLibEntryPoint();
-    if (TVMModCreateFromCModule(system_lib, &system_lib_handle) != 0) {
-      TVMAPIErrorf("error registering system lib");
-      return -1;
-    }
-  }
+  // if (system_lib_handle == kTVMModuleHandleUninitialized) {
+  //   system_lib = TVMSystemLibEntryPoint();
+  //   if (TVMModCreateFromCModule(system_lib, &system_lib_handle) != 0) {
+  //     TVMAPIErrorf("error registering system lib");
+  //     return -1;
+  //   }
+  // }
 
-  ret_val[0].v_handle = system_lib_handle;
-  ret_type_codes[0] = kTVMModuleHandle;
+  // ret_val[0].v_handle = system_lib_handle;
+  // ret_type_codes[0] = kTVMModuleHandle;
   return 0;
 }
 
@@ -256,6 +266,10 @@ int TVMModGetFunction(TVMModuleHandle mod, const char* func_name, int query_impo
 
   return FindFunctionOrSetAPIError(module_index, registered_modules[module_index]->registry,
                                    func_name, out);
+}
+
+void *TVMModGetPackedFunction(const char* func_name) {
+  return dlsym(lib_handle_, func_name);
 }
 
 int ModuleGetFunction(TVMValue* args, int* type_codes, int num_args, TVMValue* ret_value,
@@ -346,4 +360,37 @@ tvm_crt_error_t TVMInitializeRuntime(uint8_t* memory_pool, size_t memory_pool_si
   }
 
   return kTvmErrorNoError;
+}
+
+void InitContextFunctions() {
+  FuncSetLastError *funcSetLastError = (FuncSetLastError *)(TVMModGetPackedFunction("__TVMAPISetLastError"));
+  if (funcSetLastError) {
+    *funcSetLastError = TVMAPISetLastError;
+  }
+
+  FuncAllocWorkspace *funcAllocWorkspace = (FuncAllocWorkspace *)(TVMModGetPackedFunction("__TVMBackendAllocWorkspace"));
+  if (funcAllocWorkspace) {
+    *funcAllocWorkspace = TVMBackendAllocWorkspace;
+  }
+
+  FuncFreeWorkspace *funcFreeWorkspace = (FuncFreeWorkspace*)(TVMModGetPackedFunction("__TVMBackendFreeWorkspace"));
+  if (funcFreeWorkspace) {
+    *funcFreeWorkspace = TVMBackendFreeWorkspace;
+  }
+
+  FuncParallelLaunch *funcParallelLaunch = (FuncParallelLaunch *)(TVMModGetPackedFunction("__TVMBackendParallelLaunch"));
+  if (funcParallelLaunch) {
+    *funcParallelLaunch = TVMBackendParallelLaunch;
+  }
+}
+
+int TVMModLoadFromFile(const char* file_name, const char* format, TVMModuleHandle* out) {
+  lib_handle_ = dlopen(file_name, RTLD_LAZY | RTLD_LOCAL);
+  if (!lib_handle_) {
+    TVMAPIErrorf("Fail to load file %s.", file_name);
+    printf("[debug] %s-%d Fail to load file error: %s.\n", __FILE__, __LINE__, dlerror());
+    return -1;
+  }
+  InitContextFunctions();
+  return 0;
 }
